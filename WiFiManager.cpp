@@ -105,6 +105,11 @@ bool WiFiManager::addParameter(WiFiManagerParameter *p) {
 }
 
 void WiFiManager::setupConfigPortal() {
+  stopConfigPortal = false; //Signal not to close config portal
+  /*This library assumes autoconnect is set to 1. It usually is
+  but just in case check the setting and turn on autoconnect if it is off.
+  Some useful discussion at https://github.com/esp8266/Arduino/issues/1615*/
+  if (WiFi.getAutoConnect()==0)WiFi.setAutoConnect(1);
   dnsServer.reset(new DNSServer());
   server.reset(new ESP8266WebServer(80));
 
@@ -221,12 +226,8 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
 
   connect = false;
   setupConfigPortal();
-
-  while(1){
-
-    // check if timeout
-    if(configPortalHasTimeout()) break;
-
+  bool TimedOut=true;
+  while (_configPortalTimeout == 0 || millis() < _configPortalStart + _configPortalTimeout) {
     //DNS
     dnsServer->processNextRequest();
     //HTTP
@@ -235,21 +236,23 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
 
     if (connect) {
       connect = false;
+      TimedOut=false;
       delay(2000);
       DEBUG_WM(F("Connecting to new AP"));
 
       // using user-provided  _ssid, _pass in place of system-stored ssid and pass
       if (connectWifi(_ssid, _pass) != WL_CONNECTED) {
         DEBUG_WM(F("Failed to connect."));
+        WiFi.mode(WIFI_AP); // Dual mode becomes flaky if not connected to a WiFi network.
+		    // I think this might be because too much of the processor is being utilised
+    //trying to connect to the network.
       } else {
-        //connected
-        WiFi.mode(WIFI_STA);
-        //notify that configuration has changed and any optional parameters should be saved
+         //notify that configuration has changed and any optional parameters should be saved
         if ( _savecallback != NULL) {
           //todo: check if any custom parameters actually exist, and check if they really changed maybe
           _savecallback();
         }
-        break;
+        //break;
       }
 
       if (_shouldBreakAfterConfig) {
@@ -262,9 +265,18 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
         break;
       }
     }
+    if (stopConfigPortal) {
+	  stopConfigPortal = false;
+	  break;
+    }
     yield();
   }
-
+  WiFi.mode(WIFI_STA);
+  if (TimedOut & WiFi.status() != WL_CONNECTED) {
+	WiFi.begin();
+    int connRes = waitForConnectResult();
+    DEBUG_WM ("Timed out connection result: ");
+    }
   server.reset();
   dnsServer.reset();
 
@@ -412,6 +424,26 @@ void WiFiManager::setBreakAfterConfig(boolean shouldBreak) {
   _shouldBreakAfterConfig = shouldBreak;
 }
 
+void WiFiManager::reportStatus(String &page){
+  if (WiFi.SSID() != ""){
+	  page += F("Configured to connect to access point ");
+	  page += WiFi.SSID();
+	  if (WiFi.status()==WL_CONNECTED){
+		  page += F(" and <strong>currently connected</strong> on IP <a href=\"http://");
+		  page += WiFi.localIP().toString();
+		  page += F("/\">");
+		  page += WiFi.localIP().toString();
+		  page += F("</a>");
+	   }
+	  else {
+		  page += F(" but <strong>not currently connected</strong> to network.");
+	  }
+    }
+    else {
+		page += F("No network currently configured.");
+	}
+}
+
 /** Handle root or redirect to captive portal */
 void WiFiManager::handleRoot() {
   DEBUG_WM(F("Handle root"));
@@ -430,6 +462,9 @@ void WiFiManager::handleRoot() {
   page += String(F("</h1>"));
   page += String(F("<h3>WiFiManager</h3>"));
   page += FPSTR(HTTP_PORTAL_OPTIONS);
+  page += F("<div class=\"msg\">");
+  reportStatus(page);
+  page += F("</div>");
   page += FPSTR(HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
@@ -642,6 +677,8 @@ void WiFiManager::handleWifiSave() {
   page += _customHeadElement;
   page += FPSTR(HTTP_HEADER_END);
   page += FPSTR(HTTP_SAVED);
+  page.replace("{v}", _apName);
+  page.replace("{x}", _ssid);
   page += FPSTR(HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));

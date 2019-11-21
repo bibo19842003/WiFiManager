@@ -32,7 +32,7 @@ const char HTTP_FORM_START[] PROGMEM      = "<form method='get' action='wifisave
 const char HTTP_FORM_PARAM[] PROGMEM      = "<br/><input id='{i}' name='{n}' maxlength={l} placeholder='{p}' value='{v}' {c}>";
 const char HTTP_FORM_END[] PROGMEM        = "<br/><button type='submit'>save</button></form>";
 const char HTTP_SCAN_LINK[] PROGMEM       = "<br/><div class=\"c\"><a href=\"/wifi\">Scan</a></div>";
-const char HTTP_SAVED[] PROGMEM           = "<div>Credentials Saved<br />Trying to connect ESP to network.<br />If it fails reconnect to AP to try again</div>";
+const char HTTP_SAVED[] PROGMEM           = "<div class=\"msg\"><strong>Credentials Saved</strong><br>Trying to connect ESP to the {x} network.<br>Give it 10 seconds or so and check <a href=\"/\">how it went.</a> <p/>The {v} network you are connected to will be restarted on the radio channel of the {x} network. You may have to manually reconnect to the {v} network.</div>";
 const char HTTP_END[] PROGMEM             = "</div></body></html>";
 
 #ifndef WIFI_MANAGER_MAX_PARAMS
@@ -169,6 +169,7 @@ class WiFiManager
     void          handle204();
     boolean       captivePortal();
     boolean       configPortalHasTimeout();
+    void          reportStatus(String &page);
 
     // DNS server
     const byte    DNS_PORT = 53;
@@ -180,6 +181,7 @@ class WiFiManager
 
     boolean       connect;
     boolean       _debug = true;
+    boolean       stopConfigPortal = false;
 
     void (*_apcallback)(WiFiManager*) = NULL;
     void (*_savecallback)(void) = NULL;
