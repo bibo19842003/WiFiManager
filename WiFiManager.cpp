@@ -106,10 +106,6 @@ bool WiFiManager::addParameter(WiFiManagerParameter *p) {
 
 void WiFiManager::setupConfigPortal() {
   stopConfigPortal = false; //Signal not to close config portal
-  /*This library assumes autoconnect is set to 1. It usually is
-  but just in case check the setting and turn on autoconnect if it is off.
-  Some useful discussion at https://github.com/esp8266/Arduino/issues/1615*/
-  if (WiFi.getAutoConnect()==0)WiFi.setAutoConnect(1);
   dnsServer.reset(new DNSServer());
   server.reset(new ESP8266WebServer(80));
 
@@ -243,8 +239,7 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
       // using user-provided  _ssid, _pass in place of system-stored ssid and pass
       if (connectWifi(_ssid, _pass) != WL_CONNECTED) {
         DEBUG_WM(F("Failed to connect."));
-        WiFi.mode(WIFI_AP); // Dual mode becomes flaky if not connected to a WiFi network.
-		    // I think this might be because too much of the processor is being utilised
+        WiFi.mode(WIFI_AP);
     //trying to connect to the network.
       } else {
          //notify that configuration has changed and any optional parameters should be saved
@@ -426,21 +421,21 @@ void WiFiManager::setBreakAfterConfig(boolean shouldBreak) {
 
 void WiFiManager::reportStatus(String &page){
   if (WiFi.SSID() != ""){
-	  page += F("Configured to connect to access point ");
+	  page += F("<br/>Access Point: ");
 	  page += WiFi.SSID();
+          page += F("<br/> Status: ");
 	  if (WiFi.status()==WL_CONNECTED){
-		  page += F(" and <strong>currently connected</strong> on IP <a href=\"http://");
+                  page += F("<font color=\"green\">Connected</font>");
+		  page += F("<br/> IP: <strong>");
 		  page += WiFi.localIP().toString();
-		  page += F("/\">");
-		  page += WiFi.localIP().toString();
-		  page += F("</a>");
+		  page += F("</strong>");
 	   }
 	  else {
-		  page += F(" but <strong>not currently connected</strong> to network.");
+		  page += F("<font color=\"red\">Not Connected</font>");
 	  }
     }
     else {
-		page += F("No network currently configured.");
+		  page += F("<br/>No network currently configured.");
 	}
 }
 
@@ -462,7 +457,7 @@ void WiFiManager::handleRoot() {
   page += String(F("</h1>"));
   page += String(F("<h3>WiFiManager</h3>"));
   page += FPSTR(HTTP_PORTAL_OPTIONS);
-  page += F("<div class=\"msg\">");
+  page += F("<div>");
   reportStatus(page);
   page += F("</div>");
   page += FPSTR(HTTP_END);
