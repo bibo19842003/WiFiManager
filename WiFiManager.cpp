@@ -105,7 +105,6 @@ bool WiFiManager::addParameter(WiFiManagerParameter *p) {
 }
 
 void WiFiManager::setupConfigPortal() {
-  stopConfigPortal = false; //Signal not to close config portal
   dnsServer.reset(new DNSServer());
   server.reset(new ESP8266WebServer(80));
 
@@ -260,10 +259,7 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
         break;
       }
     }
-    if (stopConfigPortal) {
-	  stopConfigPortal = false;
-	  break;
-    }
+
     yield();
   }
   WiFi.mode(WIFI_STA);
